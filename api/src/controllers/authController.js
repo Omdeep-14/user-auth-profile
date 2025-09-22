@@ -2,6 +2,9 @@ import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import { createAccessToken, createRefreshToken } from "../utils/jwt.js";
 import bcrypt from "bcrypt";
+import { signUpSchema } from "../utils/signUpSchema.js";
+import { loginSchema } from "../utils/loginSchema.js";
+import mongoSanitize from "mongo-sanitize";
 
 /**
  * @desc signup new user
@@ -11,7 +14,9 @@ import bcrypt from "bcrypt";
 
 export const signUp = async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    let raw = req.body;
+    raw = mongoSanitize(raw);
+    const { username, email, password } = signUpSchema.parse(raw);
 
     if (!username || !email || !password) {
       return res.status(400).json({
@@ -74,7 +79,11 @@ export const signUp = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
-    const { identifier, password } = req.body;
+    let raw = req.body;
+    raw = mongoSanitize(raw);
+    const { identifier, password } = raw;
+
+    identifier = mongoSanitize(identifier);
     if (!identifier || !password) {
       return res.status(400).json({
         success: false,
@@ -121,7 +130,7 @@ export const login = async (req, res, next) => {
       sameSite: "none",
     });
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       message: "Login Successfull",
       user: {
@@ -130,6 +139,44 @@ export const login = async (req, res, next) => {
         email: userExists.email,
         role: userExists.role,
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//logout controller
+
+export const logout = async (req, res, next) => {
+  try {
+    const userId = req.user.sub;
+
+    if (!userId) {
+      return res.status(400).json({
+        status: false,
+        message: "User not found",
+      });
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      $inc: { tokenVersion: 1 },
+    });
+
+    res.clearCookie("access_token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+    });
+
+    res.clearCookie("refresh_token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: "Logout successful",
     });
   } catch (error) {
     next(error);

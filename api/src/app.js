@@ -6,6 +6,9 @@ import authRouter from "./routes/authRouter.js";
 import cookieParser from "cookie-parser";
 import { errorHandler } from "./middleware/errorHandler.js";
 import morgan from "morgan";
+import { generateCSRF } from "./middleware/generateCSRF.js";
+import { verifyCSRF } from "./middleware/verifyCSRF.js";
+import RouteCSRF from "./routes/RouteCSRF.js";
 
 const app = express();
 
@@ -19,6 +22,7 @@ app.use(
 app.use(express.json());
 app.use(helmet());
 app.use(cookieParser());
+app.use(generateCSRF);
 
 if (process.env.NODE_ENV == "development") {
   app.use(morgan("dev"));
@@ -33,7 +37,8 @@ const limiter = rateLimiter({
 app.use(limiter);
 
 //routes
-app.use("/api/auth", limiter, authRouter);
+app.use("/api/csrf", RouteCSRF);
+app.use("/api/auth", limiter, verifyCSRF, authRouter);
 app.use("/", (req, res) => {
   console.log("server is running");
 });
